@@ -247,8 +247,8 @@ tr.click{cursor:pointer} tr.click:hover td{background:#f7f3ec}
         <div class="refgrid" id="pGrid" style="margin-top:8px"></div>
         <label class="l">5개 소재</label>
         <div class="chips" id="pSet"></div>
-        <label class="l">그림체 <span style="font-weight:400">· 최대 2개, 기준 요소에서 자동으로 골라요</span></label>
-        <div class="chips" id="pStyle"></div>
+        <label class="l">그림체 <span style="font-weight:400">· 기준 요소를 자동 분석</span></label>
+        <div id="pStyleBox" class="hint" style="margin-top:0;line-height:1.7"></div>
         <label class="l">배경</label>
         <div class="chips" id="pBg">
           <button class="chip" data-bg="transparent">투명</button>
@@ -308,7 +308,7 @@ const $ = s=>document.querySelector(s);
 const esc = s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const img = p=> REMOTE ? (p?`<img src="${IMGBASE}${p}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">`:"") : (TH[p] ? `<img src="${TH[p]}" alt="" loading="lazy">` : "");
 const TYPE_LABEL = {I:"SVG", B:"PNG"};
-const els = (kw,tier)=> (DATA[`${kw}|${tier}|E`]||[]).map(r=>({rank:r[0],id:r[1],name:r[2],author:r[3]||"-",type:r[4],price:r[5],tags:(r[6]||"").split("|").filter(Boolean),thumb:r[7],col:r[8]}));
+const els = (kw,tier)=> (DATA[`${kw}|${tier}|E`]||[]).map(r=>({rank:r[0],id:r[1],name:r[2],author:r[3]||"-",type:r[4],price:r[5],tags:(r[6]||"").split("|").filter(Boolean),thumb:r[7],col:r[8],feat:r[9]||null}));
 const cols = (kw,tier)=> (DATA[`${kw}|${tier}|C`]||[]).map(r=>({rank:r[0],id:r[1],name:r[2],count:r[3],tags:r[4],thumb:(r[5]||[])[0]}));
 function save(){ try{localStorage.setItem("mcrank",JSON.stringify({kw:S.kw,tier:S.tier}))}catch(e){} }
 
@@ -741,30 +741,30 @@ $("#gKw").addEventListener("change",e=>{ G.kw=e.target.value; gDefaults(G.kw); r
 gDefaults(G.kw); renderGenForm();
 
 
-const PST = {kw:null, ref:null, set:0, styles:["귀여운"], bg:"transparent", ai:null, busy:false};
-const STYLE_KO = {
-  "귀여운":"동글동글하고 통통한 형태, 단순하고 귀여운 표정",
-  "손그림":"펜으로 그린 듯 살짝 삐뚤빼뚤한 손그림 선",
-  "수채화":"번지는 듯 부드러운 수채화 채색, 은은한 종이 질감",
-  "파스텔":"채도 낮은 파스텔 톤의 부드럽고 은은한 색",
-  "3D":"말랑한 3D 클레이 느낌, 부드러운 조명과 그림자",
-  "라인":"일정한 굵기의 깔끔한 선 위주, 채색은 최소로",
-  "크레용":"크레용·색연필 질감, 아이가 그린 듯한 따뜻한 느낌",
-  "빈티지":"살짝 바랜 레트로한 색감, 은은한 노이즈 질감",
-  "플랫":"그라데이션 없는 단색 면과 단순한 도형 위주의 플랫 디자인",
-};
-function refStyles(r){
+const PST = {kw:null, ref:null, set:0, bg:"transparent", ai:null, busy:false};
+function hexHsl(h){ const r=parseInt(h.slice(1,3),16)/255,g=parseInt(h.slice(3,5),16)/255,b=parseInt(h.slice(5,7),16)/255; const mx=Math.max(r,g,b),mn=Math.min(r,g,b); let hh=0,s=0; const l=(mx+mn)/2; if(mx!==mn){ const d=mx-mn; s=l>0.5?d/(2-mx-mn):d/(mx+mn); hh = mx===r?((g-b)/d+(g<b?6:0)) : mx===g?((b-r)/d+2):((r-g)/d+4); hh*=60; } return [hh,s,l]; }
+function colorName(h){ const [hu,s,l]=hexHsl(h);
+  if(s<0.12||(l<0.12)||(l>0.93)) return l<0.2?"검정":l>0.85?"흰색·아이보리":"회색";
+  if(hu>=15&&hu<50&&l<0.42&&s<0.7) return "갈색"; if(hu>=20&&hu<55&&l>0.72&&s<0.75) return "베이지";
+  const base = hu<15?"빨강":hu<40?"주황":hu<65?"노랑":hu<90?"연두":hu<160?"초록":hu<190?"청록":hu<220?"하늘색":hu<255?"파랑":hu<285?"보라":hu<335?"분홍":"빨강";
+  return (l<0.3?"진한 ":l>0.75?"연한 ":"")+base; }
+function styleOf(r){
+  const f=r.feat; const lines=[];
+  if(f){ const [cols,sat,out,tex,fill,asp]=f;
+    const names=[...new Set((cols||[]).map(colorName))].slice(0,4);
+    if(names.length) lines.push(`주요 색: ${names.join(", ")}`);
+    lines.push(sat<8?"흑백(모노톤)":sat>=65?"선명하고 채도 높은 색감":sat>=40?"적당한 채도의 색감":"차분하고 채도 낮은 색감");
+    lines.push(out>=55?"어두운 외곽선이 또렷하게 들어간 그림":out>=20?"일부에만 외곽선이 있는 그림":"외곽선 없이 색 면으로만 표현한 그림");
+    lines.push(tex<25?"그라데이션 없는 단색 면 위주의 평면적인 채색":tex<55?"단색 면에 간단한 명암을 넣은 채색":"부드러운 그라데이션이나 붓·질감이 느껴지는 채색");
+    if(asp>=20) lines.push("가로로 긴 구성(띠·가랜드처럼 여러 요소가 이어짐)"); else if(asp<=6) lines.push("세로로 긴 구성");
+    if(fill<25) lines.push("가는 선과 작은 요소들로 이루어진 가벼운 구성"); else if(fill>70) lines.push("꽉 찬 덩어리감 있는 형태");
+  }
+  lines.push(r.type==="I"?"벡터 일러스트처럼 깔끔한 면과 또렷한 경계":"디테일이 살아 있는 디지털 일러스트");
   const txt=(r.name+" "+r.tags.join(" ")+" "+(r.col||""));
-  let hit=Object.entries(STYLE_MATCH).filter(([s,ws])=>ws.some(w=>txt.includes(w))).map(x=>x[0]).filter(s=>STYLE_KO[s]);
-  if(!hit.length){ const sc=styleCounts(r.kw); hit=Object.entries(sc).sort((a,b)=>b[1]-a[1]).map(x=>x[0]).filter(s=>STYLE_KO[s]); }
-  if(!hit.length) hit=[r.type==="I"?"플랫":"귀여운"];
-  return hit.slice(0,2);
+  const vibe=Object.entries(STYLE_MATCH).filter(([s,ws])=>ws.some(w=>txt.includes(w))).map(x=>x[0]).filter(s=>s!=="라인");
+  if(vibe.length) lines.push(`분위기: ${vibe.slice(0,2).join("·")}`);
+  return {lines, cols:f?f[0]:[]};
 }
-const SIM = {
-  low:{label:"분위기만", keep:"전체적인 분위기와 색감", text:"첨부 이미지는 분위기와 색감만 참고하세요. 선과 형태는 자연스럽게 달라도 괜찮아요."},
-  mid:{label:"같은 작가 느낌", keep:"선 굵기와 질감, 색 팔레트와 채도, 명암 넣는 방식, 형태의 둥글기와 비율, 디테일 양", text:"첨부 이미지와 같은 작가가 그린 것처럼 그림체를 맞춰 주세요. 하지만 그림 자체는 완전히 새로 디자인해야 해요."},
-  high:{label:"아주 비슷하게", keep:"선 굵기와 질감, 색 팔레트와 채도, 명암 넣는 방식, 형태의 둥글기와 비율, 디테일 양, 얼굴·표정 표현 방식", text:"첨부 이미지의 그림체를 최대한 그대로 따라 주세요. 단, 소재·포즈·구도는 반드시 달라야 해요."},
-};
 function pSets(){ const base=(SETS[PST.kw]||[]).map(s=>({t:s.t,pal:s.pal,m:s.m.map(([ko,en])=>({ko,en}))})); if(PST.ai&&PST.ai.kw===PST.kw&&PST.ai.refId===(PST.ref&&PST.ref.id)) base.push({t:PST.ai.setTitle||"Claude 제안",m:PST.ai.items,ai:true}); return base; }
 function renderPngForm(){
   if(!PST.kw) PST.kw=S.kw;
@@ -774,7 +774,7 @@ function renderPngForm(){
   $("#pRef").innerHTML = r ? `<div class="refcard"><div class="rt">${img(r.thumb)}</div><div><b>${esc(r.name)}</b><div class="meta2" style="margin:2px 0 0">“${esc(r.kw)}” 프리미엄 ${r.rank}위 · ${esc(r.author)}</div></div></div>` : `<div class="hint" style="margin-top:0">아래에서 하나 골라 주세요.</div>`;
   const sets=pSets(); if(PST.set>=sets.length) PST.set=0;
   $("#pSet").innerHTML = sets.map((s,i)=>`<button class="chip ${i===PST.set?"on":""}" data-pset="${i}">${s.ai?"✦ ":""}${esc(s.t)}</button>`).join("");
-  $("#pStyle").innerHTML = Object.keys(STYLE_KO).map(s=>`<button class="chip ${PST.styles.includes(s)?"on":""}" data-pstyle="${s}">${s}</button>`).join("");
+  if(r){ const st=styleOf(r); $("#pStyleBox").innerHTML = `${st.cols.map(c=>`<span class="swatch" style="background:${esc(c)};width:16px;height:16px"></span>`).join("")}<br>${st.lines.map(l=>"· "+esc(l)).join("<br>")}`; } else $("#pStyleBox").textContent="기준 요소를 고르면 그림체를 분석해요.";
   document.querySelectorAll("#pBg .chip").forEach(b=>b.classList.toggle("on",b.dataset.bg===PST.bg));
   $("#pAiBox").hidden = !SAMPLE || !r;
   const ab=$("#pAi"); if(ab){ ab.disabled=PST.busy; ab.textContent=PST.busy?"Claude가 그림체를 보는 중…":"✦ Claude가 그림체 분석해서 더 정확하게"; }
@@ -784,7 +784,7 @@ function renderPngGrid(){
   const l=els(PST.kw,"PREMIUM").slice(0,16);
   $("#pGrid").innerHTML = l.map(x=>`<button data-pick="${x.id}" class="${PST.ref&&PST.ref.id===x.id?"on":""}" title="${esc(x.name)}"><i>${x.rank}</i>${img(x.thumb)}</button>`).join("");
 }
-function pickRef(kw,id){ const x=els(kw,"PREMIUM").find(e=>String(e.id)===String(id))||els(kw,"FREE").find(e=>String(e.id)===String(id)); if(!x) return; PST.kw=kw; PST.ref={...x,kw}; PST.set=0; PST.styles=refStyles(PST.ref); renderPngForm(); }
+function pickRef(kw,id){ const x=els(kw,"PREMIUM").find(e=>String(e.id)===String(id))||els(kw,"FREE").find(e=>String(e.id)===String(id)); if(!x) return; PST.kw=kw; PST.ref={...x,kw}; PST.set=0; renderPngForm(); }
 function buildChat(){
   const r=PST.ref; if(!r) return null;
   const set=pSets()[PST.set]; if(!set) return null;
@@ -792,10 +792,10 @@ function buildChat(){
   const bgLine = PST.bg==="white" ? "배경: 순백색(#FFFFFF) 단색 배경, 그 외 배경 요소 없음" : "배경: 투명 배경 PNG (투명이 안 되면 순백색 단색 배경)";
   const extra=$("#pExtra")?$("#pExtra").value.trim():"";
   const items=set.m.slice(0,5);
-  const styleLines = PST.styles.map(s=>`- ${STYLE_KO[s]}`).join("\n") || "- 깔끔하고 단순한 일러스트";
-  const fmtLine = r.type==="I" ? "벡터 일러스트처럼 깔끔한 면과 또렷한 경계" : "디테일이 살아 있는 고품질 디지털 일러스트";
-  const palLine = set.pal ? `색감: ${set.pal} 계열로 통일` : "색감: 5장 모두 같은 색 팔레트로 통일";
-  const styleShort = `${PST.styles.join("·")||"깔끔한"} 그림체, ${fmtLine}, ${PST.bg==="white"?"순백색 배경":"투명 배경"}, 정사각형 1:1, 요소 하나만 가운데에 크게, 글자·로고·테두리·바닥 그림자 없음`;
+  const st = styleOf(r);
+  const styleLines = st.lines.filter(l=>!l.startsWith("가로로 긴")&&!l.startsWith("세로로 긴")).map(l=>`- ${l}`).join("\n");
+  const colHex = st.cols.length ? ` (참고 색상: ${st.cols.join(", ")})` : "";
+  const styleShort = `위 [그림체]와 같은 그림체, ${PST.bg==="white"?"순백색 배경":"투명 배경"}, 정사각형 1:1, 요소 하나만 가운데에 크게, 글자·로고·테두리·바닥 그림자 없음`;
   const master = `“${r.kw}” 주제의 스톡 일러스트 요소 5개를 만들어 주세요. 디자인 플랫폼에서 판매할 꾸미기 요소예요.
 
 [가장 중요: 5장을 따로 생성]
@@ -803,10 +803,8 @@ function buildChat(){
 - 아래 1번부터 5번까지 순서대로, 한 번 생성할 때마다 그 번호의 요소 하나만 그려 주세요.
 - 한 번에 한 장만 만들 수 있다면, 1장을 만든 뒤 멈추지 말고 바로 다음 번호를 이어서 생성해 주세요. 중간에 질문하거나 확인을 받지 말고 5장을 모두 만든 뒤 마지막에 “5/5 완료”라고만 적어 주세요.
 
-[그림체 — 5장 모두 똑같이]
-${styleLines}
-- ${fmtLine}
-- ${palLine}${ai&&ai.styleKo?`\n- ${ai.styleKo}`:""}
+[그림체 — 미리캔버스 “${r.kw}” 인기 요소의 그림체를 분석한 결과. 5장 모두 이 그림체로]
+${styleLines}${colHex?`\n- 색은 이 계열로 맞추기${colHex}`:""}${ai&&ai.styleKo?`\n- ${ai.styleKo}`:""}
 - 5장 모두 같은 작가가 그린 한 세트처럼 선 굵기, 색 팔레트, 명암 넣는 방식, 디테일 양을 똑같이 맞춰 주세요.
 - 1번을 만든 뒤 2~5번은 1번과 같은 그림체로 그려 주세요.
 
@@ -833,13 +831,13 @@ function renderPngOut(){
   window.__chat=c; const r=PST.ref;
   o.innerHTML = `
     <div class="tips"><b>ChatGPT에서 이렇게 하세요</b><ol>
-      <li>왼쪽에서 그림체를 확인해요. 기준 요소의 이름·태그를 보고 자동으로 골라 두었고, 바꿔도 돼요.</li>
+      <li>기준 요소의 그림(색·채도·외곽선·채색 방식·형태)을 자동으로 분석해 그림체 설명을 프롬프트에 넣었어요. 왼쪽에서 다른 순위 요소를 고르면 그 그림체로 바뀌어요.</li>
       <li>ChatGPT 새 대화에 아래 프롬프트를 <b>한 번만</b> 붙여 넣어 보내요. 이미지 첨부는 필요 없어요. 5장이 따로따로 생성돼요.</li>
       <li>중간에 멈추면 “계속”이라고만 보내면 남은 번호부터 이어서 그려요.</li>
       <li>ChatGPT 이미지는 1024~1536px라서, Photoshop <b>이미지 › 이미지 크기</b>에서 <b>세부 묘사 유지 2.0</b>(또는 Camera Raw <b>향상 › 슈퍼 해상도</b>)으로 가로 <b>3600px 이상</b>으로 키워 저장해요.</li>
     </ol></div>
     <div class="reshead">
-      <div class="meta2">기준: “${esc(r.kw)}” ${r.rank}위 · 그림체 ${esc(PST.styles.join("·")||"기본")} · ${PST.bg==="white"?"흰 배경":"투명 배경"}</div>
+      <div class="meta2">기준: “${esc(r.kw)}” ${r.rank}위 “${esc(r.name)}”의 그림체 · ${PST.bg==="white"?"흰 배경":"투명 배경"}</div>
       <h2>ChatGPT 프롬프트 <span style="font-size:13px;color:var(--muted);font-weight:500">— ${esc(c.set.t)}</span></h2>
       <pre style="white-space:pre-wrap;word-break:break-word;background:#f7f4ee;border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-family:'IBM Plex Sans KR',sans-serif;font-size:13px;line-height:1.65;margin:10px 0">${esc(c.master)}</pre>
       <div class="row"><button class="small svgmain" data-cmaster="1" style="background:var(--accent);color:#fff;border-color:var(--accent)">프롬프트 복사</button><button class="small" data-cmeta="1">5장 제목·태그 복사</button></div>
@@ -883,7 +881,6 @@ document.addEventListener("click",e=>{
   const pr=e.target.closest("[data-pngref]"); if(pr){ closeDrawer(); pickRef(S.kw, pr.dataset.pngref); setView("png"); window.scrollTo({top:0}); return; }
   const pk=e.target.closest("[data-pick]"); if(pk){ pickRef(PST.kw, pk.dataset.pick); return; }
   const ps=e.target.closest("[data-pset]"); if(ps){ PST.set=+ps.dataset.pset; renderPngForm(); return; }
-  const ps2=e.target.closest("[data-pstyle]"); if(ps2){ const v=ps2.dataset.pstyle; if(PST.styles.includes(v)) PST.styles=PST.styles.filter(x=>x!==v); else { PST.styles.push(v); if(PST.styles.length>2) PST.styles.shift(); } renderPngForm(); return; }
   const bg=e.target.closest("#pBg .chip"); if(bg){ PST.bg=bg.dataset.bg; renderPngForm(); return; }
   if(e.target.closest("#pAi")){ pAnalyze(); return; }
   const c=window.__chat; if(!c) return;
@@ -891,7 +888,7 @@ document.addEventListener("click",e=>{
   const s1=e.target.closest("[data-csingle]"); if(s1){ copyText(c.singles[+s1.dataset.csingle],s1); return; }
   const il=e.target.closest("[data-cil]"); if(il){ copyText(c.illus[+il.dataset.cil],il); return; }
   const ila=e.target.closest("[data-cilall]"); if(ila){ copyText(c.illus.map((p,i)=>`${i+1}. ${p}`).join("\n"),ila); return; }
-  const fg=e.target.closest("[data-cfigma]"); if(fg){ const r=PST.ref; copyText(`미리캔버스 “${r.kw}” 프리미엄 ${r.rank}위 “${r.name}”(작가 ${r.author}) 느낌으로 SVG 5장 세트를 Figma에서 따로따로 만들어줘.\n그림체: ${PST.styles.join("·")}\n배경: 투명\n소재:\n${c.items.map((x,i)=>`${i+1}. ${x.ko}${x.en?` (${x.en})`:""}`).join("\n")}${$("#pExtra").value.trim()?`\n추가 요청: ${$("#pExtra").value.trim()}`:""}`, fg); return; }
+  const fg=e.target.closest("[data-cfigma]"); if(fg){ const r=PST.ref; copyText(`미리캔버스 “${r.kw}” 프리미엄 ${r.rank}위 “${r.name}”(작가 ${r.author}) 느낌으로 SVG 5장 세트를 Figma에서 따로따로 만들어줘.\n그림체: 기준 요소와 비슷하게\n배경: 투명\n소재:\n${c.items.map((x,i)=>`${i+1}. ${x.ko}${x.en?` (${x.en})`:""}`).join("\n")}${$("#pExtra").value.trim()?`\n추가 요청: ${$("#pExtra").value.trim()}`:""}`, fg); return; }
   const mt=e.target.closest("[data-cmeta]"); if(mt){ copyText(c.meta.map((x,i)=>`[${i+1}] ${x.title}\n${x.tags.join(", ")}`).join("\n\n"),mt); return; }
 });
 $("#pKw").addEventListener("change",e=>{ PST.kw=e.target.value; ensureThumbs(PST.kw).then(renderPngGrid); renderPngForm(); });
