@@ -100,7 +100,7 @@ tpl_p, data_p, th_p, prev_p, date, out = sys.argv[1:7]
 PAGES = '--pages' in sys.argv[7:]
 t = open(tpl_p, encoding='utf-8').read()
 c = json.load(open(data_p, encoding='utf-8'))
-TH = json.load(open(th_p, encoding='utf-8'))
+TH = json.load(open(th_p, encoding='utf-8')) if th_p != '-' else {}
 prev = json.load(open(prev_p, encoding='utf-8')) if prev_p != '-' and os.path.exists(prev_p) else {}
 
 groups = re.search(r'const GROUPS = \[(.*?)\n\];', t, re.S).group(1)
@@ -139,8 +139,9 @@ for i, k in enumerate(kws):
 for key, v in c.items():
     if key.endswith('|E'):
         for r in v:
+            pre = r[9] if len(r) > 9 else None
             r[:] = r[:9]
-            f = feat(TH[r[7]]) if TH.get(r[7]) else None
+            f = pre if pre else (feat(TH[r[7]]) if TH.get(r[7]) else None)
             r.append(f)
 
 # previous ranks: {"kw|TIER": [ids in rank order]}
