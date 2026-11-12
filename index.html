@@ -256,6 +256,7 @@ tr.click{cursor:pointer} tr.click:hover td{background:#f7f3ec}
         </div>
         <label class="l">추가 요청 <span style="font-weight:400">· 선택</span></label>
         <textarea id="pExtra" placeholder="예: 카페 메뉴판에 쓸 수 있게 디저트 위주로"></textarea>
+        <button class="btn pri" id="pMake">ChatGPT 프롬프트 만들기</button>
         <div id="pAiBox" hidden>
           <button class="btn sec" id="pAi">✦ Claude가 그림체 분석해서 더 정확하게</button>
           <div class="hint">썸네일을 보고 선·색·명암 특징을 글로 적어 프롬프트에 넣고, 겹치지 않는 5개 소재도 정해요.</div>
@@ -741,7 +742,7 @@ $("#gKw").addEventListener("change",e=>{ G.kw=e.target.value; gDefaults(G.kw); r
 gDefaults(G.kw); renderGenForm();
 
 
-const PST = {kw:null, ref:null, set:0, bg:"transparent", ai:null, busy:false};
+const PST = {kw:null, ref:null, set:0, bg:"transparent", ai:null, busy:false, made:false};
 function hexHsl(h){ const r=parseInt(h.slice(1,3),16)/255,g=parseInt(h.slice(3,5),16)/255,b=parseInt(h.slice(5,7),16)/255; const mx=Math.max(r,g,b),mn=Math.min(r,g,b); let hh=0,s=0; const l=(mx+mn)/2; if(mx!==mn){ const d=mx-mn; s=l>0.5?d/(2-mx-mn):d/(mx+mn); hh = mx===r?((g-b)/d+(g<b?6:0)) : mx===g?((b-r)/d+2):((r-g)/d+4); hh*=60; } return [hh,s,l]; }
 function colorName(h){ const [hu,s,l]=hexHsl(h);
   if(s<0.12||(l<0.12)||(l>0.93)) return l<0.2?"검정":l>0.85?"흰색·아이보리":"회색";
@@ -777,6 +778,7 @@ function renderPngForm(){
   if(r){ const st=styleOf(r); $("#pStyleBox").innerHTML = `${st.cols.map(c=>`<span class="swatch" style="background:${esc(c)};width:16px;height:16px"></span>`).join("")}<br>${st.lines.map(l=>"· "+esc(l)).join("<br>")}`; } else $("#pStyleBox").textContent="기준 요소를 고르면 그림체를 분석해요.";
   document.querySelectorAll("#pBg .chip").forEach(b=>b.classList.toggle("on",b.dataset.bg===PST.bg));
   $("#pAiBox").hidden = !SAMPLE || !r;
+  $("#pMake").disabled = !r;
   const ab=$("#pAi"); if(ab){ ab.disabled=PST.busy; ab.textContent=PST.busy?"Claude가 그림체를 보는 중…":"✦ Claude가 그림체 분석해서 더 정확하게"; }
   renderPngGrid(); renderPngOut();
 }
@@ -784,7 +786,7 @@ function renderPngGrid(){
   const l=els(PST.kw,"PREMIUM").slice(0,16);
   $("#pGrid").innerHTML = l.map(x=>`<button data-pick="${x.id}" class="${PST.ref&&PST.ref.id===x.id?"on":""}" title="${esc(x.name)}"><i>${x.rank}</i>${img(x.thumb)}</button>`).join("");
 }
-function pickRef(kw,id){ const x=els(kw,"PREMIUM").find(e=>String(e.id)===String(id))||els(kw,"FREE").find(e=>String(e.id)===String(id)); if(!x) return; PST.kw=kw; PST.ref={...x,kw}; PST.set=0; renderPngForm(); }
+function pickRef(kw,id){ const x=els(kw,"PREMIUM").find(e=>String(e.id)===String(id))||els(kw,"FREE").find(e=>String(e.id)===String(id)); if(!x) return; PST.kw=kw; PST.ref={...x,kw}; PST.set=0; PST.made=false; renderPngForm(); }
 function buildChat(){
   const r=PST.ref; if(!r) return null;
   const set=pSets()[PST.set]; if(!set) return null;
@@ -827,6 +829,8 @@ ${items.map((x,i)=>`${i+1}번: ${x.ko}${x.en?` (${x.en})`:""} — ${styleShort}`
 }
 function renderPngOut(){
   const o=$("#pOut"); if(!o) return;
+  if(!PST.ref){ return; }
+  if(!PST.made){ o.innerHTML = `<div class="empty">기준 요소: <b>“${esc(PST.ref.kw)}” ${PST.ref.rank}위 ${esc(PST.ref.name)}</b><br><br>왼쪽에서 소재·배경을 확인하고 <b>ChatGPT 프롬프트 만들기</b>를 눌러 주세요.</div>`; return; }
   const c=buildChat(); if(!c){ return; }
   window.__chat=c; const r=PST.ref;
   o.innerHTML = `
@@ -870,7 +874,7 @@ Extra direction: ${$("#pExtra").value.trim()||"none"}
 Reply with ONLY JSON: {"styleKo":"Korean style description","setTitle":"Korean title max 12 chars","items":[{"ko":"Korean subject, short","en":"short English description","tags":["Korean tag","Korean tag","Korean tag"]} x5]}`,{modelTier:"default",images,cache:false});
     if(!res||!Array.isArray(res.items)||res.items.length<5) throw new Error("bad");
     PST.ai={kw:r.kw, refId:r.id, styleKo:String(res.styleKo||""), setTitle:String(res.setTitle||"Claude 제안"), items:res.items.slice(0,5).map(x=>({ko:String(x.ko||""),en:String(x.en||""),tags:(x.tags||[]).map(String)}))};
-    PST.busy=false; PST.set=pSets().length-1;
+    PST.busy=false; PST.set=pSets().length-1; PST.made=true;
   }catch(e){
     PST.busy=false; renderPngForm();
     $("#pOut").insertAdjacentHTML("afterbegin",`<div class="tips" style="background:#fdecec;border-color:#f3c3c3">${e&&e.code==="rate_limited"?"요청이 많아요. 잠시 후 다시 눌러 주세요.":e&&e.code==="not_granted"?"Claude 사용 동의가 필요해요.":"분석하지 못했어요. 다시 눌러 주세요."}</div>`); return;
@@ -881,8 +885,10 @@ document.addEventListener("click",e=>{
   const pr=e.target.closest("[data-pngref]"); if(pr){ closeDrawer(); pickRef(S.kw, pr.dataset.pngref); setView("png"); window.scrollTo({top:0}); return; }
   const pk=e.target.closest("[data-pick]"); if(pk){ pickRef(PST.kw, pk.dataset.pick); return; }
   const ps=e.target.closest("[data-pset]"); if(ps){ PST.set=+ps.dataset.pset; renderPngForm(); return; }
+  
   const bg=e.target.closest("#pBg .chip"); if(bg){ PST.bg=bg.dataset.bg; renderPngForm(); return; }
   if(e.target.closest("#pAi")){ pAnalyze(); return; }
+  if(e.target.closest("#pMake")){ PST.made=true; renderPngOut(); const o=$("#pOut"); if(o) o.scrollIntoView({behavior:"smooth",block:"start"}); return; }
   const c=window.__chat; if(!c) return;
   const m=e.target.closest("[data-cmaster]"); if(m){ copyText(c.master,m); return; }
   const s1=e.target.closest("[data-csingle]"); if(s1){ copyText(c.singles[+s1.dataset.csingle],s1); return; }
