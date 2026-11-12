@@ -53,7 +53,7 @@ h1 small{display:block;font-size:13px;font-weight:500;color:var(--muted);letter-
 .cbody{padding:9px 10px 11px;display:flex;flex-direction:column;gap:3px;min-height:72px}
 .cname{font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cauth{font-size:11.5px;color:var(--muted)}
-.ctags{font-size:11px;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctags{font-size:11px;color:var(--accent);line-height:1.45;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .colbadge{font-size:10.5px;background:var(--accent-soft);color:var(--accent);border-radius:4px;padding:1px 5px;align-self:flex-start;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 aside .panel{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
 .panel h3{margin:0 0 10px;font-size:14px;display:flex;justify-content:space-between;align-items:baseline}
@@ -336,7 +336,7 @@ function renderGrid(){
       <div class="cbody">
         <div class="cname" title="${esc(x.name)}">${esc(x.name)}</div>
         <div class="cauth">${esc(x.author)}${x.price?` · ${x.price.toLocaleString()}원`:""}</div>
-        <div class="ctags">${esc(x.tags.slice(0,4).map(t=>"#"+t).join(" "))}</div>
+        <div class="ctags" title="${esc(x.tags.join(", "))}">${esc(x.tags.join(", "))}</div>
         ${x.col?`<span class="colbadge">📁 ${esc(x.col)}</span>`:""}
       </div>
     </button>`).join("") : `<div class="empty">조건에 맞는 요소가 없어요.</div>`;
@@ -364,7 +364,7 @@ function renderSide(){
       </div>
     </div>
     <div class="panel">
-      <h3>함께 붙은 태그 <span>상위권 요소 기준</span></h3>
+      <h3>함께 붙은 태그 <span>상위권 요소 기준 · <button class="small" data-copyco="1" style="padding:2px 8px;font-size:11px">쉼표로 복사</button></span></h3>
       <div class="tagcloud">${st.tags.slice(0,22).map(([t,c])=>`<span class="tag">${esc(t)}<i>${c}</i></span>`).join("")}</div>
     </div>
     ${cl.length?`<div class="panel">
@@ -383,8 +383,9 @@ function openDrawer(id){
     <h2>${esc(x.name)}</h2>
     <div class="cauth">${esc(x.author)} · ${x.type==="I"?"일러스트(SVG, 색 변경 가능)":x.type==="B"?"비트맵(PNG)":esc(x.type)} · ${x.price?x.price.toLocaleString()+"원":"무료"}</div>
     ${x.col?`<p class="tip">📁 컬렉션: <b>${esc(x.col)}</b></p>`:""}
-    <div class="sec-title" style="font-size:13px">등록 태그 (앞 6개, 작가 입력 순서)</div>
-    <div class="tagcloud">${x.tags.map(t=>`<span class="tag">${esc(t)}</span>`).join("")}</div>
+    <div class="sec-title" style="font-size:13px">등록 키워드 <span style="font-weight:400;color:var(--muted)">· 작가 입력 순서</span></div>
+    <div style="background:#f7f4ee;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.6">${esc(x.tags.join(", "))}</div>
+    <button class="small" data-copykw="${x.id}" style="margin-top:6px">키워드 복사</button>
     <div class="sec-title" style="font-size:13px">이 요소가 상위 30위에 든 키워드</div>
     <div class="tagcloud">${appear.map(k=>`<span class="tag">${k}</span>`).join("")}</div>
     ${others.length?`<div class="sec-title" style="font-size:13px">같은 작가의 다른 상위 요소 (${others.length})</div>
@@ -455,6 +456,10 @@ document.addEventListener("click",e=>{
   if(e.target.id==="ov") closeDrawer();
 });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeDrawer(); });
+document.addEventListener("click",e=>{
+  const ck=e.target.closest("[data-copykw]"); if(ck){ const x=els(S.kw,S.tier).find(v=>String(v.id)===ck.dataset.copykw); if(x) copyText(x.tags.join(", "),ck); return; }
+  const cc=e.target.closest("[data-copyco]"); if(cc){ const st=stats(els(S.kw,S.tier),S.kw); copyText(st.tags.slice(0,30).map(t=>t[0]).join(", "),cc); return; }
+});
 $("#q").addEventListener("input",e=>{S.q=e.target.value.trim(); renderGrid();});
 renderAll();
 try{ if(PREVDATE) $("#prevNote").textContent = `▲▼ 순위 변화는 ${PREVDATE} 수집분과 비교`; }catch(e){}
